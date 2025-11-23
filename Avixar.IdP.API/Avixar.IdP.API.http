@@ -1,6 +1,0 @@
-@Avixar.IdP.API_HostAddress = http://localhost:5288
-
-GET {{Avixar.IdP.API_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
