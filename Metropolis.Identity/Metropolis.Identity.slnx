@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Metropolis.Application/Metropolis.Application.csproj" />
+  <Project Path="Metropolis.Data/Metropolis.Data.csproj" />
+  <Project Path="Metropolis.Domain/Metropolis.Domain.csproj" />
+  <Project Path="Metropolis.Entity/Metropolis.Entity.csproj" />
+  <Project Path="Metropolis.Infrastructure/Metropolis.Infrastructure.csproj" />
+</Solution>
