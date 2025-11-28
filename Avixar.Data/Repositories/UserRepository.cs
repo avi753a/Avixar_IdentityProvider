@@ -80,9 +80,10 @@ namespace Avixar.Data.Repositories
                 var sql = @"
                     SELECT u.""Id"", u.""DisplayName"", s.""PasswordHash"", 
                            pgp_sym_decrypt(s.""Email_Enc"", current_setting('app.enc_key')) as Email
-                    FROM ""users"" s
+                    FROM ""user_secrets"" s
                     JOIN ""users"" u ON u.""Id"" = s.""Id""
-                    WHERE s.""Email_Hash"" = encode(hmac(@email, current_setting('app.blind_key'), 'sha256'), 'hex');
+                    WHERE s.""Email_Hash"" = encode(hmac(@email, current_setting('app.blind_key'), 'sha256'), 'hex')
+                    AND s.""PasswordHash"" IS NOT NULL;
                 ";
 
                 string? dbPasswordHash = null;
@@ -176,7 +177,7 @@ namespace Avixar.Data.Repositories
                     SELECT u.""Id"", u.""DisplayName"", u.""ProfilePictureUrl"",
                            pgp_sym_decrypt(s.""Email_Enc"", current_setting('app.enc_key')) as Email
                     FROM ""users"" u
-                    JOIN ""users"" s ON u.""Id"" = s.""Id""
+                    JOIN ""user_secrets"" s ON u.""Id"" = s.""Id""
                     WHERE u.""Id"" = @uid;
                 ";
 

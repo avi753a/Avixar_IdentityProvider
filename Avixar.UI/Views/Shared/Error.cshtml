@@ -1,25 +1,63 @@
-﻿@model ErrorViewModel
-@{
-    ViewData["Title"] = "Error";
+﻿@{
+    ViewData["Title"] = ViewBag.ErrorTitle ?? "Error";
+    Layout = "_Layout";
 }
 
-<h1 class="text-danger">Error.</h1>
-<h2 class="text-danger">An error occurred while processing your request.</h2>
+<div class="min-h-screen flex items-center justify-center px-4 py-12">
+    <div class="max-w-2xl w-full">
+        <div class="glass rounded-2xl p-8 border border-red-500/20">
+            <!-- Error Icon -->
+            <div class="flex justify-center mb-6">
+                <div class="w-20 h-20 rounded-full bg-red-500/10 border-2 border-red-500/30 flex items-center justify-center">
+                    <svg class="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                </div>
+            </div>
 
-@if (Model.ShowRequestId)
-{
-    <p>
-        <strong>Request ID:</strong> <code>@Model.RequestId</code>
-    </p>
-}
+            <!-- Error Title -->
+            <h1 class="text-3xl font-bold text-center mb-4 text-white">
+                @ViewBag.ErrorTitle
+            </h1>
 
-<h3>Development Mode</h3>
-<p>
-    Swapping to <strong>Development</strong> environment will display more detailed information about the error that occurred.
-</p>
-<p>
-    <strong>The Development environment shouldn't be enabled for deployed applications.</strong>
-    It can result in displaying sensitive information from exceptions to end users.
-    For local debugging, enable the <strong>Development</strong> environment by setting the <strong>ASPNETCORE_ENVIRONMENT</strong> environment variable to <strong>Development</strong>
-    and restarting the app.
-</p>
+            <!-- Error Message -->
+            <div class="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-4">
+                <p class="text-red-300 text-center font-medium">
+                    @ViewBag.ErrorMessage
+                </p>
+            </div>
+
+            <!-- Error Details (if available) -->
+            @if (!string.IsNullOrEmpty(ViewBag.ErrorDetails))
+            {
+                <details class="mb-6">
+                    <summary class="cursor-pointer text-slate-400 hover:text-slate-300 text-sm mb-2">
+                        Show technical details
+                    </summary>
+                    <div class="bg-slate-900/50 rounded-lg p-4 border border-slate-700">
+                        <pre class="text-xs text-slate-400 whitespace-pre-wrap font-mono">@ViewBag.ErrorDetails</pre>
+                    </div>
+                </details>
+            }
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a asp-controller="Auth" asp-action="Login" 
+                   class="px-6 py-3 bg-metro-primary hover:bg-metro-primary/80 text-white font-semibold rounded-lg transition-all text-center">
+                    Try Again
+                </a>
+                <a asp-controller="Home" asp-action="Index" 
+                   class="px-6 py-3 glass hover:bg-white/5 text-slate-300 font-medium rounded-lg transition-all text-center">
+                    Go Home
+                </a>
+            </div>
+
+            <!-- Support Info -->
+            <div class="mt-8 pt-6 border-t border-slate-700">
+                <p class="text-slate-500 text-sm text-center">
+                    If this problem persists, please check the console output for detailed error information.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
