@@ -5,9 +5,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Avixar.Data\Avixar.Data.csproj" />
     <ProjectReference Include="..\Avixar.Entity\Avixar.Entity.csproj" />
     <ProjectReference Include="..\Avixar.Infrastructure\Avixar.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Avixar.Entity\Avixar.Entity.csproj" />
     <ProjectReference Include="..\Avixar.Infrastructure\Avixar.Infrastructure.csproj" />
+    <ProjectReference Include="..\Avixar.Domain\Avixar.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,5 +1,6 @@
 <Solution>
-  <Project Path="Avixar.Application/Avixar.Application.csproj" />
+  <Project Path="Avixar.API/Avixar.API.csproj" />
+  <Project Path="Avixar.UI/Avixar.UI.csproj" />
   <Project Path="Avixar.Data/Avixar.Data.csproj" />
   <Project Path="Avixar.Domain/Avixar.Domain.csproj" />
   <Project Path="Avixar.Entity/Avixar.Entity.csproj" />

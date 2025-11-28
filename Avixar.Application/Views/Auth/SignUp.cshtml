@@ -1,0 +1,152 @@
+@model Avixar.Domain.DTOs.RegisterDto
+@{
+    ViewData["Title"] = "Sign Up";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Metropolis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* 3D Tilt & Floating Animation */
+        .perspective-container {
+            perspective: 2000px;
+        }
+        .tilt-card {
+            transform: rotateX(10deg) rotateY(-5deg);
+            transform-style: preserve-3d;
+            transition: transform 0.5s ease;
+            animation: float 6s ease-in-out infinite;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        @@keyframes float {
+            0% { transform: rotateX(10deg) rotateY(-5deg) translateY(0px); }
+            50% { transform: rotateX(10deg) rotateY(-5deg) translateY(-20px); }
+            100% { transform: rotateX(10deg) rotateY(-5deg) translateY(0px); }
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        /* Form Elements */
+        .input-field {
+            background: #0B0F19;
+            border: 1px solid #1F2937;
+            transition: all 0.3s ease;
+        }
+        .input-field:focus {
+            border-color: #6366F1;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+            outline: none;
+        }
+    </style>
+</head>
+<body class="bg-[#05050A] text-white h-screen w-full overflow-hidden flex items-center justify-center">
+
+    <div class="container mx-auto px-4 h-full flex items-center justify-center">
+        <div class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            
+            <!-- Left Column: 3D Visual -->
+            <div class="hidden lg:flex justify-center perspective-container">
+                <div class="tilt-card w-full max-w-md aspect-[4/5] rounded-2xl glass-panel relative overflow-hidden group">
+                    <!-- Dashboard Mockup Content -->
+                    <div class="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10"></div>
+                    <div class="p-8 relative z-10">
+                        <div class="h-8 w-32 bg-white/10 rounded-full mb-8"></div>
+                        <div class="space-y-4">
+                            <div class="h-48 w-full bg-white/5 rounded-xl border border-white/5"></div>
+                            <div class="h-12 w-full bg-white/5 rounded-xl border border-white/5 mt-8"></div>
+                            <div class="h-12 w-full bg-white/5 rounded-xl border border-white/5"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Decorative Elements -->
+                    <div class="absolute -top-20 -right-20 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl"></div>
+                    <div class="absolute -bottom-20 -left-20 w-64 h-64 bg-pink-500/20 rounded-full blur-3xl"></div>
+                </div>
+            </div>
+
+            <!-- Right Column: Signup Form -->
+            <div class="w-full max-w-md mx-auto">
+                <div class="mb-8">
+                    <h1 class="text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">Create Account</h1>
+                    <p class="text-gray-400">Join Metropolis and explore the future.</p>
+                </div>
+
+                <form asp-controller="Auth" asp-action="Register" method="post" class="space-y-4">
+                    <div asp-validation-summary="ModelOnly" class="text-red-500 text-sm"></div>
+
+                    <div class="space-y-2">
+                        <label asp-for="DisplayName" class="text-sm font-medium text-gray-300">Display Name</label>
+                        <input asp-for="DisplayName" class="input-field w-full px-4 py-3 rounded-lg text-white placeholder-gray-600" placeholder="John Doe" required />
+                        <span asp-validation-for="DisplayName" class="text-red-500 text-xs"></span>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label asp-for="Email" class="text-sm font-medium text-gray-300">Email Address</label>
+                        <input asp-for="Email" type="email" class="input-field w-full px-4 py-3 rounded-lg text-white placeholder-gray-600" placeholder="name@example.com" required />
+                        <span asp-validation-for="Email" class="text-red-500 text-xs"></span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <label asp-for="Password" class="text-sm font-medium text-gray-300">Password</label>
+                            <input asp-for="Password" type="password" class="input-field w-full px-4 py-3 rounded-lg text-white placeholder-gray-600" placeholder="••••••••" required />
+                            <span asp-validation-for="Password" class="text-red-500 text-xs"></span>
+                        </div>
+                        <div class="space-y-2">
+                            <label asp-for="ConfirmPassword" class="text-sm font-medium text-gray-300">Confirm</label>
+                            <input asp-for="ConfirmPassword" type="password" class="input-field w-full px-4 py-3 rounded-lg text-white placeholder-gray-600" placeholder="••••••••" required />
+                            <span asp-validation-for="ConfirmPassword" class="text-red-500 text-xs"></span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition-all duration-300 shadow-lg shadow-indigo-500/25 mt-2">
+                        Sign Up
+                    </button>
+                </form>
+
+                <div class="relative my-6">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-gray-800"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-2 bg-[#05050A] text-gray-500">Or continue with</span>
+                    </div>
+                </div>
+
+                <form asp-controller="Auth" asp-action="ExternalLogin" method="post" class="grid grid-cols-2 gap-4">
+                    <button type="submit" name="provider" value="Google" class="flex items-center justify-center px-4 py-3 border border-gray-700 rounded-lg hover:bg-gray-800 transition-colors duration-300 group">
+                        <svg class="h-5 w-5 text-gray-300 group-hover:text-white transition-colors" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/>
+                        </svg>
+                        <span class="ml-2 text-sm font-medium text-gray-300 group-hover:text-white">Google</span>
+                    </button>
+
+                    <button type="submit" name="provider" value="Microsoft" class="flex items-center justify-center px-4 py-3 border border-gray-700 rounded-lg hover:bg-gray-800 transition-colors duration-300 group">
+                        <svg class="h-5 w-5 text-gray-300 group-hover:text-white transition-colors" viewBox="0 0 23 23" fill="currentColor">
+                            <path d="M0 0h11v11H0zM12 0h11v11H12zM0 12h11v11H0zM12 12h11v11H12z"/>
+                        </svg>
+                        <span class="ml-2 text-sm font-medium text-gray-300 group-hover:text-white">Microsoft</span>
+                    </button>
+                </form>
+
+                <div class="mt-8 text-center">
+                    <p class="text-gray-400 text-sm">
+                        Already have an account? 
+                        <a asp-controller="Auth" asp-action="Login" class="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">Sign In</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

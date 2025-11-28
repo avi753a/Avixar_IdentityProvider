@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+    <PackageReference Include="Microsoft.OpenApi" Version="1.4.3" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Avixar.Domain\Avixar.Domain.csproj" />
+    <ProjectReference Include="..\Avixar.Data\Avixar.Data.csproj" />
+    <ProjectReference Include="..\Avixar.Entity\Avixar.Entity.csproj" />
+    <ProjectReference Include="..\Avixar.Infrastructure\Avixar.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

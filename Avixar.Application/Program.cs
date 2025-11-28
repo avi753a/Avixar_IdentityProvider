@@ -1,8 +1,7 @@
-using Avixar.Data;
-using Avixar.Domain;
-using Avixar.Entity;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
+using Avixar.Domain.Services;
+using Avixar.Domain.Interfaces;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,68 +9,117 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 
 // Database
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Host=localhost;Port=5432;Database=avidevdb;Username=appuser;Password=Temp@123";
-builder.Services.AddDbContext<AppDbContext>(options =>
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrEmpty(connectionString))
 {
-    options.UseNpgsql(connectionString);
-    
-    // Register the entity sets needed by OpenIddict.
-    options.UseOpenIddict();
+    connectionString = "Host=localhost;Port=5432;Database=avidevdb;Username=appuser;Password=Temp@123";
+}
+
+// Register Services (implementations are in Data layer, registered via Domain)
+builder.Services.AddScoped<IUserRepository>(sp => 
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    return new Avixar.Data.Repositories.UserRepository(config);
 });
 
-// Identity
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
-    .AddEntityFrameworkStores<AppDbContext>()
-    .AddDefaultTokenProviders();
+// Register Domain Services
+builder.Services.AddScoped<IUserService, UserService>();
 
-// External Authentication
-builder.Services.AddAuthentication()
-    .AddGoogle(options =>
-    {
-        options.ClientId = builder.Configuration["Authentication:Google:ClientId"] ?? "missing-client-id";
-        options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? "missing-client-secret";
-    })
-    .AddMicrosoftAccount(options =>
-    {
-        options.ClientId = builder.Configuration["Authentication:Microsoft:ClientId"] ?? "missing-client-id";
-        options.ClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"] ?? "missing-client-secret";
-    })
-    .AddGitHub(options =>
-    {
-        options.ClientId = builder.Configuration["Authentication:GitHub:ClientId"] ?? "missing-client-id";
-        options.ClientSecret = builder.Configuration["Authentication:GitHub:ClientSecret"] ?? "missing-client-secret";
-    });
+// Configure Cookie Policy for cross-origin OAuth (dev tunnel compatibility)
+builder.Services.Configure<CookiePolicyOptions>(options =>
+{
+    options.MinimumSameSitePolicy = SameSiteMode.None;
+    options.Secure = CookieSecurePolicy.Always;
+});
 
-// OpenIddict
-builder.Services.AddOpenIddict()
-    .AddCore(options =>
+// Authentication (Cookie + External)
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+})
+.AddCookie(options =>
+{
+    options.LoginPath = "/Auth/Login";
+    options.ExpireTimeSpan = TimeSpan.FromDays(30);
+    options.Cookie.SameSite = SameSiteMode.None;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.HttpOnly = true;
+})
+.AddCookie("ExternalCookie", options =>
+{
+    options.Cookie.SameSite = SameSiteMode.None;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.HttpOnly = true;
+})
+.AddGoogle(options =>
+{
+    options.ClientId = builder.Configuration["Authentication:Google:ClientId"] ?? "missing-client-id";
+    options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? "missing-client-secret";
+    options.SignInScheme = "ExternalCookie";
+    options.SaveTokens = true;
+    
+    // Add event handlers for debugging
+    options.Events = new Microsoft.AspNetCore.Authentication.OAuth.OAuthEvents
     {
-        options.UseEntityFrameworkCore()
-               .UseDbContext<AppDbContext>();
-    })
-    .AddServer(options =>
+        OnRemoteFailure = context =>
+        {
+            Console.WriteLine($"Google Auth Remote Failure: {context.Failure?.Message}");
+            var baseUrl = context.Request.Scheme + "://" + context.Request.Host;
+            context.Response.Redirect($"{baseUrl}/Auth/Login?error=" + Uri.EscapeDataString(context.Failure?.Message ?? "Unknown error"));
+            context.HandleResponse();
+            return Task.CompletedTask;
+        }
+    };
+})
+.AddMicrosoftAccount(options =>
+{
+    options.ClientId = builder.Configuration["Authentication:Microsoft:ClientId"] ?? "missing-client-id";
+    options.ClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"] ?? "missing-client-secret";
+    options.SignInScheme = "ExternalCookie";
+    options.SaveTokens = true;
+    
+    // Add event handlers for debugging
+    options.Events = new Microsoft.AspNetCore.Authentication.OAuth.OAuthEvents
     {
-        options.SetTokenEndpointUris("/connect/token");
-        options.AllowClientCredentialsFlow();
-        
-        options.AddDevelopmentEncryptionCertificate()
-               .AddDevelopmentSigningCertificate();
-               
-        options.UseAspNetCore()
-               .EnableTokenEndpointPassthrough();
-    })
-    .AddValidation(options =>
-    {
-        options.UseLocalServer();
-        options.UseAspNetCore();
-    });
+        OnRemoteFailure = context =>
+        {
+            Console.WriteLine($"Microsoft Auth Remote Failure: {context.Failure?.Message}");
+            Console.WriteLine($"Stack: {context.Failure?.StackTrace}");
+            var baseUrl = context.Request.Scheme + "://" + context.Request.Host;
+            context.Response.Redirect($"{baseUrl}/Auth/Login?error=" + Uri.EscapeDataString(context.Failure?.Message ?? "Unknown error"));
+            context.HandleResponse();
+            return Task.CompletedTask;
+        },
+        OnAccessDenied = context =>
+        {
+            Console.WriteLine("Microsoft Auth Access Denied");
+            var baseUrl = context.Request.Scheme + "://" + context.Request.Host;
+            context.Response.Redirect($"{baseUrl}/Auth/Login?error=access_denied");
+            context.HandleResponse();
+            return Task.CompletedTask;
+        },
+        OnCreatingTicket = context =>
+        {
+            Console.WriteLine("Microsoft Auth: Creating ticket");
+            Console.WriteLine($"Access Token: {context.AccessToken?.Substring(0, Math.Min(20, context.AccessToken.Length))}...");
+            return Task.CompletedTask;
+        }
+    };
+});
 
-// Domain Services
-builder.Services.AddScoped<AuthService>();
-
-// Swagger
+// Swagger with JWT Support (Optional - kept if you still want API support later)
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Avixar Identity Provider API",
+        Version = "v1",
+        Description = "External API for third-party applications (Game/Shop)"
+    });
+});
 
 var app = builder.Build();
 
@@ -85,6 +133,9 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
+// IMPORTANT: Cookie policy must come before UseRouting for OAuth to work with dev tunnels
+app.UseCookiePolicy();
+
 app.UseRouting();
 
 app.UseAuthentication();
@@ -93,7 +144,10 @@ app.UseAuthorization();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Avixar Identity Provider API v1");
+    });
 }
 
 app.MapControllerRoute(

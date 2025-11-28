@@ -94,3 +94,25 @@ yarn-error.log*
 
 # macOS
 .DS_Store
+
+# Old Application folder (to be deleted after migration)
+Avixar.Application/
+
+# Sensitive configuration files (keep templates, ignore actual secrets)
+**/appsettings.Development.json
+**/appsettings.Production.json
+# Uncomment below if you want to ignore all appsettings with secrets
+# **/appsettings.*.json
+
+# Dev Tunnels
+*.devtunnels.ms
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Environment files
+.env
+.env.local
+.env.*.local
