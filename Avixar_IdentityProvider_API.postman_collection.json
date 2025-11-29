@@ -1,0 +1,523 @@
+{
+    "info": {
+        "name": "Avixar Identity Provider API",
+        "description": "Complete API collection for testing Avixar Identity Provider OAuth flows and user management",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "version": "1.0.0"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "https://localhost:7001",
+            "type": "string"
+        },
+        {
+            "key": "ui_base_url",
+            "value": "https://localhost:7000",
+            "type": "string"
+        },
+        {
+            "key": "client_id",
+            "value": "test_client_123",
+            "type": "string"
+        },
+        {
+            "key": "client_secret",
+            "value": "test_secret_456",
+            "type": "string"
+        },
+        {
+            "key": "redirect_uri",
+            "value": "http://localhost:3000/callback",
+            "type": "string"
+        },
+        {
+            "key": "auth_code",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "access_token",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "1. Authentication (UI)",
+            "item": [
+                {
+                    "name": "Register User",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/x-www-form-urlencoded"
+                            }
+                        ],
+                        "body": {
+                            "mode": "urlencoded",
+                            "urlencoded": [
+                                {
+                                    "key": "Email",
+                                    "value": "testuser@example.com",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "Password",
+                                    "value": "Test@123456",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "DisplayName",
+                                    "value": "Test User",
+                                    "type": "text"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{ui_base_url}}/Auth/Register",
+                            "host": [
+                                "{{ui_base_url}}"
+                            ],
+                            "path": [
+                                "Auth",
+                                "Register"
+                            ]
+                        },
+                        "description": "Register a new user account"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Login User",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/x-www-form-urlencoded"
+                            }
+                        ],
+                        "body": {
+                            "mode": "urlencoded",
+                            "urlencoded": [
+                                {
+                                    "key": "Email",
+                                    "value": "testuser@example.com",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "Password",
+                                    "value": "Test@123456",
+                                    "type": "text"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{ui_base_url}}/Auth/Login",
+                            "host": [
+                                "{{ui_base_url}}"
+                            ],
+                            "path": [
+                                "Auth",
+                                "Login"
+                            ]
+                        },
+                        "description": "Login with email and password. This will set authentication cookies."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "User authentication endpoints (UI application)"
+        },
+        {
+            "name": "2. OAuth Authorization Flow",
+            "item": [
+                {
+                    "name": "Step 1: Authorize (Get Auth Code)",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/connect/authorize?client_id={{client_id}}&redirect_uri={{redirect_uri}}&response_type=code&state=random_state_123&nonce=random_nonce_456",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "connect",
+                                "authorize"
+                            ],
+                            "query": [
+                                {
+                                    "key": "client_id",
+                                    "value": "{{client_id}}",
+                                    "description": "OAuth Client ID"
+                                },
+                                {
+                                    "key": "redirect_uri",
+                                    "value": "{{redirect_uri}}",
+                                    "description": "Callback URL"
+                                },
+                                {
+                                    "key": "response_type",
+                                    "value": "code",
+                                    "description": "Must be 'code' for authorization code flow"
+                                },
+                                {
+                                    "key": "state",
+                                    "value": "random_state_123",
+                                    "description": "Random state for CSRF protection"
+                                },
+                                {
+                                    "key": "nonce",
+                                    "value": "random_nonce_456",
+                                    "description": "Random nonce for replay protection"
+                                }
+                            ]
+                        },
+                        "description": "**IMPORTANT**: User must be logged in first!\n\n1. First login via UI (/Auth/Login)\n2. Then call this endpoint\n3. If authenticated, you'll be redirected to: redirect_uri?code=XXXXX&state=random_state_123\n4. Copy the 'code' from the redirect URL\n5. Save it to the {{auth_code}} variable"
+                    },
+                    "response": [
+                        {
+                            "name": "Success - Redirect with Code",
+                            "originalRequest": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/connect/authorize?client_id={{client_id}}&redirect_uri={{redirect_uri}}&response_type=code&state=random_state_123",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "connect",
+                                        "authorize"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "client_id",
+                                            "value": "{{client_id}}"
+                                        },
+                                        {
+                                            "key": "redirect_uri",
+                                            "value": "{{redirect_uri}}"
+                                        },
+                                        {
+                                            "key": "response_type",
+                                            "value": "code"
+                                        },
+                                        {
+                                            "key": "state",
+                                            "value": "random_state_123"
+                                        }
+                                    ]
+                                }
+                            },
+                            "status": "Found",
+                            "code": 302,
+                            "_postman_previewlanguage": "plain",
+                            "header": [
+                                {
+                                    "key": "Location",
+                                    "value": "http://localhost:3000/callback?code=a1b2c3d4e5f6&state=random_state_123"
+                                }
+                            ],
+                            "body": ""
+                        }
+                    ]
+                },
+                {
+                    "name": "Step 2: Exchange Code for Token",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/x-www-form-urlencoded"
+                            }
+                        ],
+                        "body": {
+                            "mode": "urlencoded",
+                            "urlencoded": [
+                                {
+                                    "key": "client_id",
+                                    "value": "{{client_id}}",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "client_secret",
+                                    "value": "{{client_secret}}",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "code",
+                                    "value": "{{auth_code}}",
+                                    "type": "text",
+                                    "description": "Authorization code from Step 1"
+                                },
+                                {
+                                    "key": "redirect_uri",
+                                    "value": "{{redirect_uri}}",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "grant_type",
+                                    "value": "authorization_code",
+                                    "type": "text"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/connect/token",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "connect",
+                                "token"
+                            ]
+                        },
+                        "description": "Exchange authorization code for access token.\n\n**Before running**: Set {{auth_code}} variable with the code from Step 1"
+                    },
+                    "response": [
+                        {
+                            "name": "Success Response",
+                            "originalRequest": {
+                                "method": "POST",
+                                "header": [],
+                                "body": {
+                                    "mode": "urlencoded",
+                                    "urlencoded": [
+                                        {
+                                            "key": "client_id",
+                                            "value": "test_client_123"
+                                        },
+                                        {
+                                            "key": "client_secret",
+                                            "value": "test_secret_456"
+                                        },
+                                        {
+                                            "key": "code",
+                                            "value": "a1b2c3d4e5f6"
+                                        },
+                                        {
+                                            "key": "redirect_uri",
+                                            "value": "http://localhost:3000/callback"
+                                        },
+                                        {
+                                            "key": "grant_type",
+                                            "value": "authorization_code"
+                                        }
+                                    ]
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/connect/token",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "connect",
+                                        "token"
+                                    ]
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n  \"access_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"expires_in\": 3600,\n  \"id_token\": \"TODO: Implement ID Token if needed\"\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Step 3: Get User Info",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/connect/userinfo",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "connect",
+                                "userinfo"
+                            ]
+                        },
+                        "description": "Get user information using the access token.\n\n**Before running**: Set {{access_token}} variable with the token from Step 2"
+                    },
+                    "response": [
+                        {
+                            "name": "Success Response",
+                            "originalRequest": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/connect/userinfo",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "connect",
+                                        "userinfo"
+                                    ]
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n  \"sub\": \"123e4567-e89b-12d3-a456-426614174000\",\n  \"name\": \"Test User\",\n  \"email\": \"testuser@example.com\",\n  \"picture\": null\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Step 4: Logout",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/connect/logout?post_logout_redirect_uri=http://localhost:3000/&client_id={{client_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "connect",
+                                "logout"
+                            ],
+                            "query": [
+                                {
+                                    "key": "post_logout_redirect_uri",
+                                    "value": "http://localhost:3000/"
+                                },
+                                {
+                                    "key": "client_id",
+                                    "value": "{{client_id}}"
+                                }
+                            ]
+                        },
+                        "description": "Logout user and redirect to specified URI"
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Complete OAuth 2.0 Authorization Code Flow"
+        },
+        {
+            "name": "3. User Profile Management",
+            "item": [
+                {
+                    "name": "Get User Profile",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Cookie",
+                                "value": ".AspNetCore.Cookies=YOUR_COOKIE_VALUE",
+                                "type": "text",
+                                "description": "Copy from browser after login"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{ui_base_url}}/Account/Index",
+                            "host": [
+                                "{{ui_base_url}}"
+                            ],
+                            "path": [
+                                "Account",
+                                "Index"
+                            ]
+                        },
+                        "description": "Get current user's profile. Requires authentication cookie."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "User profile and account management"
+        },
+        {
+            "name": "4. Health Check",
+            "item": [
+                {
+                    "name": "API Health Check",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                ""
+                            ]
+                        },
+                        "description": "Check if API is running"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "UI Health Check",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{ui_base_url}}/",
+                            "host": [
+                                "{{ui_base_url}}"
+                            ],
+                            "path": [
+                                ""
+                            ]
+                        },
+                        "description": "Check if UI is running"
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Health check endpoints"
+        }
+    ],
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    ""
+                ]
+            }
+        },
+        {
+            "listen": "test",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    ""
+                ]
+            }
+        }
+    ]
+}
