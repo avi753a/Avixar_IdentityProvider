@@ -27,10 +27,12 @@ namespace Avixar.Data
             _logger = logger;
         }
 
+        #region sp_sociallogin Logic
         public async Task<Guid> LoginWithSocialAsync(string provider, string subjectId, string email, string displayName, string? pictureUrl)
         {
             try
             {
+                string emailHash = "";
                 _logger.LogInformation("Social login attempt - Provider: {Provider}, Email: {Email}", provider, email);
                 
                 using (var conn = new NpgsqlConnection(_connString))
@@ -38,33 +40,109 @@ namespace Avixar.Data
                     await conn.OpenAsync();
                     await SetDBEncryptionKeyVariables(conn);
 
-                    using (var cmd = new NpgsqlCommand("CALL sp_SocialLogin(@prov, @sub, @email, @name, @pic, @uid)", conn))
+                    // Check if provider link already exists
+                    using (var checkProviderCmd = new NpgsqlCommand(@"
+                        SELECT ""UserId"" FROM ""user_providers""
+                        WHERE ""Provider"" = @provider::auth_provider
+                          AND ""ProviderSubjectId"" = @subjectId", conn))
                     {
-                        cmd.Parameters.AddWithValue("prov", provider.ToUpper());
-                        cmd.Parameters.AddWithValue("sub", subjectId);
-                        cmd.Parameters.AddWithValue("email", email ?? "");
-                        cmd.Parameters.AddWithValue("name", displayName ?? "User");
-                        cmd.Parameters.AddWithValue("pic", (object?)pictureUrl ?? DBNull.Value);
-
-                        var outParam = new NpgsqlParameter("uid", NpgsqlDbType.Uuid)
+                        checkProviderCmd.Parameters.AddWithValue("provider", provider.ToUpper());
+                        checkProviderCmd.Parameters.AddWithValue("subjectId", subjectId);
+                        
+                        var existingUserId = await checkProviderCmd.ExecuteScalarAsync();
+                        if (existingUserId != null)
                         {
-                            Direction = ParameterDirection.InputOutput,
-                            Value = DBNull.Value
-                        };
-                        cmd.Parameters.Add(outParam);
-
-                        await cmd.ExecuteNonQueryAsync();
-
-                        if (outParam.Value == DBNull.Value)
-                        {
-                            _logger.LogError("Social login failed - sp_SocialLogin returned null");
-                            throw new Exception("Failed to login/register user via sp_SocialLogin.");
+                            var userId = (Guid)existingUserId;
+                            _logger.LogInformation("Social login successful - Existing provider link found, UserId: {UserId}", userId);
+                            return userId;
                         }
-
-                        var userId = (Guid)outParam.Value;
-                        _logger.LogInformation("Social login successful - Provider: {Provider}, UserId: {UserId}", provider, userId);
-                        return userId;
                     }
+
+                    // Check if user exists by email
+                    Guid? existingUserIdByEmail = null;
+                    if (!string.IsNullOrWhiteSpace(email))
+                    {
+                        emailHash = await ComputeEmailHashAsync(conn, email);
+                        using (var checkEmailCmd = new NpgsqlCommand(@"
+                            SELECT ""Id"" FROM ""user_secrets""
+                            WHERE ""Email_Hash"" = @emailHash", conn))
+                        {
+                            checkEmailCmd.Parameters.AddWithValue("emailHash", emailHash);
+                            var result = await checkEmailCmd.ExecuteScalarAsync();
+                            
+                            if (result != null)
+                            {
+                                existingUserIdByEmail = (Guid)result;
+                            }
+                        }
+                    }
+
+                    // If user exists by email, link the provider
+                    if (existingUserIdByEmail.HasValue)
+                    {
+                        using (var linkProviderCmd = new NpgsqlCommand(@"
+                            INSERT INTO ""user_providers"" (""UserId"", ""Provider"", ""ProviderSubjectId"")
+                            VALUES (@userId, @provider::auth_provider, @subjectId)", conn))
+                        {
+                            linkProviderCmd.Parameters.AddWithValue("userId", existingUserIdByEmail.Value);
+                            linkProviderCmd.Parameters.AddWithValue("provider", provider.ToUpper());
+                            linkProviderCmd.Parameters.AddWithValue("subjectId", subjectId);
+                            
+                            await linkProviderCmd.ExecuteNonQueryAsync();
+                        }
+                        
+                        _logger.LogInformation("Social login successful - Linked provider to existing user, UserId: {UserId}", existingUserIdByEmail.Value);
+                        return existingUserIdByEmail.Value;
+                    }
+
+                    // Create new user
+                    Guid newUserId;
+                    byte[]? emailEnc = null;
+
+                    if (!string.IsNullOrWhiteSpace(email))
+                    {
+                        emailEnc = await EncryptEmailAsync(conn, email);
+                        emailHash = await ComputeEmailHashAsync(conn, email);
+                    }
+
+                    using (var insertUserCmd = new NpgsqlCommand(@"
+                        INSERT INTO ""users"" (""DisplayName"", ""ProfilePictureUrl"")
+                        VALUES (@displayName, @pictureUrl)
+                        RETURNING ""Id""", conn))
+                    {
+                        insertUserCmd.Parameters.AddWithValue("displayName", displayName ?? "User");
+                        insertUserCmd.Parameters.AddWithValue("pictureUrl", (object?)pictureUrl ?? DBNull.Value);
+                        
+                        var result = await insertUserCmd.ExecuteScalarAsync();
+                        newUserId = (Guid)result!;
+                    }
+
+                    // Insert user secrets
+                    using (var insertSecretsCmd = new NpgsqlCommand(@"
+                        INSERT INTO ""user_secrets"" (""Id"", ""Email_Enc"", ""Email_Hash"")
+                        VALUES (@id, @emailEnc, @emailHash)", conn))
+                    {
+                        insertSecretsCmd.Parameters.AddWithValue("id", newUserId);
+                        insertSecretsCmd.Parameters.AddWithValue("emailEnc", (object?)emailEnc ?? DBNull.Value);
+                        insertSecretsCmd.Parameters.AddWithValue("emailHash", (object?)emailHash ?? DBNull.Value);
+                        
+                        await insertSecretsCmd.ExecuteNonQueryAsync();
+                    }
+
+                    // Link provider
+                    using (var insertProviderCmd = new NpgsqlCommand(@"
+                        INSERT INTO ""user_providers"" (""UserId"", ""Provider"", ""ProviderSubjectId"")
+                        VALUES (@userId, @provider::auth_provider, @subjectId)", conn))
+                    {
+                        insertProviderCmd.Parameters.AddWithValue("userId", newUserId);
+                        insertProviderCmd.Parameters.AddWithValue("provider", provider.ToUpper());
+                        insertProviderCmd.Parameters.AddWithValue("subjectId", subjectId);
+                        
+                        await insertProviderCmd.ExecuteNonQueryAsync();
+                    }
+
+                    _logger.LogInformation("Social login successful - New user created, UserId: {UserId}", newUserId);
+                    return newUserId;
                 }
             }
             catch (Exception ex)
@@ -73,6 +151,7 @@ namespace Avixar.Data
                 throw;
             }
         }
+        #endregion
 
         public async Task<UserCredentials?> LoginLocalAsync(string email)
         {
@@ -117,58 +196,84 @@ namespace Avixar.Data
             }
         }
 
+        #region sp_registeruser Logic
         public async Task<Guid> RegisterLocalAsync(string email, string password, string displayName)
         {
             try
             {
                 _logger.LogInformation("Registration attempt for email: {Email}", email);
+
+                if (string.IsNullOrWhiteSpace(email))
+                {
+                    throw new Exception("Email is required.");
+                }
                 
                 using (var conn = new NpgsqlConnection(_connString))
                 {
                     await conn.OpenAsync();
+                    await SetDBEncryptionKeyVariables(conn);
 
-                    using (var keyCmd = new NpgsqlCommand($"SET app.enc_key = '{_encKey}'; SET app.blind_key = '{_blindKey}';", conn))
+                    // Hash the email to check for duplicates
+                    string emailHash = await ComputeEmailHashAsync(conn, email);
+
+                    // Check if user already exists
+                    using (var checkCmd = new NpgsqlCommand(@"SELECT 1 FROM ""user_secrets"" WHERE ""Email_Hash"" = @emailHash", conn))
                     {
-                        await keyCmd.ExecuteNonQueryAsync();
-                    }
-
-                    string passwordHash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 11);
-
-                    using (var cmd = new NpgsqlCommand("CALL sp_CreateUser(@name, @email, @mobile, @pass, @newId)", conn))
-                    {
-                        cmd.Parameters.AddWithValue("name", displayName);
-                        cmd.Parameters.AddWithValue("email", email);
-                        cmd.Parameters.AddWithValue("mobile", DBNull.Value);
-                        cmd.Parameters.AddWithValue("pass", passwordHash);
-
-                        var outParam = new NpgsqlParameter("newId", NpgsqlDbType.Uuid)
-                        {
-                            Direction = ParameterDirection.InputOutput,
-                            Value = DBNull.Value
-                        };
-                        cmd.Parameters.Add(outParam);
-
-                        try 
-                        {
-                            await cmd.ExecuteNonQueryAsync();
-                            var userId = (Guid)outParam.Value;
-                            _logger.LogInformation("Registration successful - UserId: {UserId}", userId);
-                            return userId;
-                        }
-                        catch (PostgresException ex) when (ex.SqlState == "23505")
+                        checkCmd.Parameters.AddWithValue("emailHash", emailHash);
+                        var exists = await checkCmd.ExecuteScalarAsync();
+                        
+                        if (exists != null)
                         {
                             _logger.LogWarning("Registration failed - User already exists: {Email}", email);
-                            throw new Exception("User with this email already exists.");
+                            throw new Exception("USER_EXISTS: An account with this email already exists.");
                         }
                     }
+
+                    // Encrypt email
+                    byte[] emailEnc = await EncryptEmailAsync(conn, email);
+
+                    // Hash password
+                    string passwordHash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 11);
+
+                    // Insert into users table
+                    Guid newUserId;
+                    using (var insertUserCmd = new NpgsqlCommand(@"
+                        INSERT INTO ""users"" (""DisplayName"", ""LastLoginAt"")
+                        VALUES (@displayName, @lastLoginAt)
+                        RETURNING ""Id""", conn))
+                    {
+                        insertUserCmd.Parameters.AddWithValue("displayName", displayName);
+                        insertUserCmd.Parameters.AddWithValue("lastLoginAt", DateTime.UtcNow);
+                        
+                        var result = await insertUserCmd.ExecuteScalarAsync();
+                        newUserId = (Guid)result!;
+                    }
+
+                    // Insert into user_secrets table
+                    using (var insertSecretsCmd = new NpgsqlCommand(@"
+                        INSERT INTO ""user_secrets"" 
+                        (""Id"", ""PasswordHash"", ""Email_Enc"", ""Email_Hash"")
+                        VALUES (@id, @passwordHash, @emailEnc, @emailHash)", conn))
+                    {
+                        insertSecretsCmd.Parameters.AddWithValue("id", newUserId);
+                        insertSecretsCmd.Parameters.AddWithValue("passwordHash", passwordHash);
+                        insertSecretsCmd.Parameters.AddWithValue("emailEnc", emailEnc);
+                        insertSecretsCmd.Parameters.AddWithValue("emailHash", emailHash);
+                        
+                        await insertSecretsCmd.ExecuteNonQueryAsync();
+                    }
+
+                    _logger.LogInformation("Registration successful - UserId: {UserId}", newUserId);
+                    return newUserId;
                 }
             }
-            catch (Exception ex) when (ex.Message != "User with this email already exists.")
+            catch (Exception ex) when (!ex.Message.StartsWith("USER_EXISTS"))
             {
                 _logger.LogError(ex, "Error during registration for email: {Email}", email);
                 throw;
             }
         }
+        #endregion
 
         public async Task<ApplicationUser?> GetUserAsync(Guid userId)
         {
@@ -390,6 +495,7 @@ namespace Avixar.Data
             }
         }
 
+        #region Helper Methods
         private async Task SetDBEncryptionKeyVariables(NpgsqlConnection conn)
         {
             try
@@ -406,5 +512,26 @@ namespace Avixar.Data
                 throw new Exception("Failed to set encryption key variables.", ex);
             }
         }
+
+        private async Task<string> ComputeEmailHashAsync(NpgsqlConnection conn, string email)
+        {
+            using (var cmd = new NpgsqlCommand(@"SELECT encode(hmac(@email, current_setting('app.blind_key'), 'sha256'), 'hex')", conn))
+            {
+                cmd.Parameters.AddWithValue("email", email);
+                var result = await cmd.ExecuteScalarAsync();
+                return (string)result!;
+            }
+        }
+
+        private async Task<byte[]> EncryptEmailAsync(NpgsqlConnection conn, string email)
+        {
+            using (var cmd = new NpgsqlCommand(@"SELECT pgp_sym_encrypt(@email, current_setting('app.enc_key'))", conn))
+            {
+                cmd.Parameters.AddWithValue("email", email);
+                var result = await cmd.ExecuteScalarAsync();
+                return (byte[])result!;
+            }
+        }
+        #endregion
     }
 }
