@@ -1,12 +1,20 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
 using Avixar.UI.Models;
 
 namespace Avixar.UI.Controllers;
 
 public class HomeController : Controller
 {
+    private readonly ILogger<HomeController> _logger;
+
+    public HomeController(ILogger<HomeController> logger)
+    {
+        _logger = logger;
+    }
+
     public IActionResult Index()
     {
         return View();
@@ -20,6 +28,7 @@ public class HomeController : Controller
     [Authorize]
     public IActionResult Welcome()
     {
+        _logger.LogInformation("Welcome page accessed by authenticated user");
         return View();
     }
 

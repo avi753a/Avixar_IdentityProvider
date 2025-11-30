@@ -1,125 +1,172 @@
-using Avixar.Domain.Services;
-using Avixar.Domain.Interfaces;
+using Avixar.Domain;
+using Avixar.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using StackExchange.Redis;
 using System.Text;
+using Serilog;
 
-var builder = WebApplication.CreateBuilder(args);
+// Configure Serilog
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .WriteTo.File(@"D:\Logs\api_application.log", 
+        rollingInterval: RollingInterval.Day,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .CreateLogger();
 
-// Add services to the container.
-builder.Services.AddControllers();
-
-// Database connection
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-if (string.IsNullOrEmpty(connectionString))
+try
 {
-    connectionString = "Host=localhost;Port=5432;Database=avidevdb;Username=appuser;Password=Temp@123";
-}
+    var builder = WebApplication.CreateBuilder(args);
 
-// Register Services
-builder.Services.AddScoped<IUserRepository>(sp =>
-{
-    var config = sp.GetRequiredService<IConfiguration>();
-    return new Avixar.Data.Repositories.UserRepository(config);
-});
+    // Use Serilog
+    builder.Host.UseSerilog();
 
-builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
+    // Add services to the container.
+    builder.Services.AddControllers();
 
-// JWT Authentication
-var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "YourSuperSecretKeyForJWTTokenGeneration123456789";
-var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "AvixarIdentityProvider";
-var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "AvixarClients";
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
+    // 1. Redis Registration
+    var redisConn = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
+    try
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtIssuer,
-        ValidAudience = jwtAudience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
-    };
-});
-
-builder.Services.AddAuthorization();
-
-// CORS - Allow requests from UI and third-party apps
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll", policy =>
+        var redis = ConnectionMultiplexer.Connect(redisConn + ",abortConnect=false");
+        builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+        builder.Services.AddScoped<ICacheService, RedisCacheService>();
+    }
+    catch (Exception ex)
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
+        Log.Error(ex, "Failed to connect to Redis. Caching will be disabled.");
+    }
 
-// Swagger with JWT Support
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "Avixar Identity Provider API",
-        Version = "v1",
-        Description = "External API for third-party applications (Game/Shop) with JWT authentication"
-    });
+    // 2. Token Service Registration
+    builder.Services.AddScoped<TokenService>();
 
-    // Add JWT authentication to Swagger
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token in the text input below.",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
-    });
+    // 3. Repository Registration
+    builder.Services.AddScoped<IUserRepository, UserRepository>();
+    builder.Services.AddScoped<IClientRepository, ClientRepository>();
 
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    // 4. Service Registration
+    builder.Services.AddScoped<IUserService, UserService>();
+    builder.Services.AddScoped<IAuthService, AuthService>();
+    builder.Services.AddScoped<IConnectService, ConnectService>();
+
+    // 5. Health Checks
+    builder.Services.AddHealthChecks()
+        .AddRedis(redisConn, name: "redis");
+
+    // JWT Authentication & Cookie Configuration
+    var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "YourSuperSecretKeyForJWTTokenGeneration123456789";
+    var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "AvixarIdentityProvider";
+    var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "AvixarClients";
+
+    builder.Services.AddAuthentication(options =>
     {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
+    {
+        options.Cookie.Name = "Avixar.Auth";
+        options.LoginPath = "/Auth/Login";
+    })
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+        };
     });
-});
 
-var app = builder.Build();
+    builder.Services.AddAuthorization();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
+    // CORS
+    builder.Services.AddCors(options =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Avixar Identity Provider API v1");
+        options.AddPolicy("AllowAll", policy =>
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        });
     });
+
+    // Swagger with JWT Support
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(c =>
+    {
+        c.SwaggerDoc("v1", new OpenApiInfo
+        {
+            Title = "Avixar Identity Provider API",
+            Version = "v1",
+            Description = "External API for third-party applications with JWT authentication"
+        });
+
+        c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+        {
+            Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token.",
+            Name = "Authorization",
+            In = ParameterLocation.Header,
+            Type = SecuritySchemeType.ApiKey,
+            Scheme = "Bearer"
+        });
+
+        c.AddSecurityRequirement(new OpenApiSecurityRequirement
+        {
+            {
+                new OpenApiSecurityScheme
+                {
+                    Reference = new OpenApiReference
+                    {
+                        Type = ReferenceType.SecurityScheme,
+                        Id = "Bearer"
+                    }
+                },
+                Array.Empty<string>()
+            }
+        });
+    });
+
+    var app = builder.Build();
+
+    // Global Exception Middleware (MUST be first to catch all exceptions)
+    app.UseMiddleware<Avixar.Infrastructure.Middleware.GlobalExceptionMiddleware>();
+
+    // Use Serilog request logging
+    app.UseSerilogRequestLogging();
+
+    // Configure the HTTP request pipeline.
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI(c =>
+        {
+            c.SwaggerEndpoint("/swagger/v1/swagger.json", "Avixar Identity Provider API v1");
+        });
+    }
+
+    app.UseHttpsRedirection();
+    app.UseCors("AllowAll");
+    app.UseAuthentication();
+    app.UseAuthorization();
+    app.MapControllers();
+    app.MapHealthChecks("/health");
+
+    Log.Information("Starting Avixar API");
+    app.Run();
 }
-
-app.UseHttpsRedirection();
-
-app.UseCors("AllowAll");
-
-app.UseAuthentication();
-app.UseAuthorization();
-
-app.MapControllers();
-
-app.Run();
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}

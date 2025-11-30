@@ -1,0 +1,110 @@
+@model Avixar.Entity.UserProfileDto
+@{
+    ViewData["Title"] = "My Account";
+}
+
+<div class="container mt-5">
+    <h2>My Account</h2>
+    
+    @if (TempData["Message"] != null)
+    {
+        <div class="alert alert-success">@TempData["Message"]</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile" type="button" role="tab" aria-controls="profile" aria-selected="true">Profile</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="address-tab" data-bs-toggle="tab" data-bs-target="#address" type="button" role="tab" aria-controls="address" aria-selected="false">Addresses</button>
+        </li>
+    </ul>
+    
+    <div class="tab-content p-3 border border-top-0" id="myTabContent">
+        <!-- Profile Tab -->
+        <div class="tab-pane fade show active" id="profile" role="tabpanel" aria-labelledby="profile-tab">
+            <form asp-action="UpdateProfile" method="post">
+                <input type="hidden" asp-for="UserId" />
+                <div class="mb-3">
+                    <label asp-for="Email" class="form-label">Email</label>
+                    <input asp-for="Email" class="form-control" readonly />
+                </div>
+                <div class="mb-3">
+                    <label asp-for="DisplayName" class="form-label">Display Name</label>
+                    <input asp-for="DisplayName" class="form-control" maxlength="300" />
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="FirstName" class="form-label">First Name</label>
+                        <input asp-for="FirstName" class="form-control" maxlength="300" />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="LastName" class="form-label">Last Name</label>
+                        <input asp-for="LastName" class="form-control" maxlength="300" />
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </form>
+        </div>
+
+        <!-- Address Tab -->
+        <div class="tab-pane fade" id="address" role="tabpanel" aria-labelledby="address-tab">
+            <h4>My Addresses</h4>
+            
+            <div class="list-group mb-4">
+                @if (Model.Addresses != null)
+                {
+                    @foreach (var addr in Model.Addresses)
+                    {
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>@addr.Label</strong><br/>
+                                @addr.AddressLine1 @addr.AddressLine2<br/>
+                                @addr.City, @addr.PostalCode
+                            </div>
+                            <form asp-action="DeleteAddress" method="post" onsubmit="return confirm('Are you sure?');">
+                                <input type="hidden" name="id" value="@addr.Id" />
+                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                            </form>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p>No addresses found.</p>
+                }
+            </div>
+
+            <h5>Add New Address</h5>
+            <form asp-action="AddAddress" method="post">
+                <div class="mb-3">
+                    <label class="form-label">Label (Home, Work, etc.)</label>
+                    <input name="Label" class="form-control" maxlength="300" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Address Line 1</label>
+                    <input name="AddressLine1" class="form-control" required maxlength="300" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Address Line 2</label>
+                    <input name="AddressLine2" class="form-control" maxlength="300" />
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">City</label>
+                        <input name="City" class="form-control" required maxlength="300" />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Postal Code</label>
+                        <input name="PostalCode" class="form-control" required maxlength="300" />
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success">Add Address</button>
+            </form>
+        </div>
+    </div>
+</div>
