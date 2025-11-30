@@ -3,48 +3,91 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Avixar.UI</title>
-    <script type="importmap"></script>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/Avixar.UI.styles.css" asp-append-version="true" />
-</head>
-<body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Avixar.UI</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
+    <title>@ViewData["Title"] - Metropolis</title>
+    
+    <!-- 1. Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. Google Fonts (Inter & Space Grotesk) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
 
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2025 - Avixar.UI - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+    <!-- 3. Custom Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        metro: {
+                            bg: '#05050A',       // Deepest Black/Blue
+                            card: '#0B0F19',     // Card Background
+                            primary: '#2563EB',  // Electric Blue
+                            cyan: '#06B6D4',     // Neon Cyan
+                            gold: '#F59E0B',     // Shopping Gold
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Space Grotesk', 'sans-serif'],
+                    },
+                    animation: {
+                        'float': 'float 8s ease-in-out infinite',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px) rotateX(20deg) scale(0.9)' },
+                            '50%': { transform: 'translateY(-20px) rotateX(20deg) scale(0.9)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { background-color: #05050A; color: white; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .glass-strong { background: rgba(11, 15, 25, 0.8); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        
+        /* The 3D Magic */
+        .scene-3d { perspective: 2000px; }
+        .tilted-dashboard { 
+            transform-style: preserve-3d; 
+            transform: rotateX(20deg) scale(0.9);
+            box-shadow: 0 50px 100px -20px rgba(37, 99, 235, 0.15);
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-metro-primary selection:text-white">
+    <!-- Navbar -->
+    <nav class="fixed w-full z-50 top-0 left-0 border-b border-white/5 bg-metro-bg/80 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-metro-primary flex items-center justify-center font-display font-bold text-xl shadow-[0_0_20px_rgba(37,99,235,0.4)]">M</div>
+                <span class="font-display font-bold text-xl tracking-wide">METROPOLIS</span>
+            </div>
+            
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                 <div class="flex items-center gap-4">
+                     <span class="text-sm text-slate-400">@User.Identity.Name</span>
+                     <form asp-controller="Auth" asp-action="Logout" method="post">
+                        <button class="px-5 py-2 text-sm font-medium border border-white/10 rounded-full hover:bg-white/5 transition-all">Logout</button>
+                     </form>
+                 </div>
+            }
+            else 
+            {
+                <div class="flex gap-4">
+                    <a href="/Auth/Login" class="px-6 py-2 text-sm font-bold bg-metro-primary rounded-full hover:bg-blue-600 transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)]">
+                        Login
+                    </a>
+                </div>
+            }
         </div>
-    </footer>
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
-    @await RenderSectionAsync("Scripts", required: false)
+    </nav>
+
+    @RenderBody()
+
 </body>
 </html>

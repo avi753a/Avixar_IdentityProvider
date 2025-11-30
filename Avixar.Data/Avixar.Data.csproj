@@ -3,10 +3,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Avixar.Entity\Avixar.Entity.csproj" />
     <ProjectReference Include="..\Avixar.Infrastructure\Avixar.Infrastructure.csproj" />
-    <ProjectReference Include="..\Avixar.Domain\Avixar.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.2.0" />
