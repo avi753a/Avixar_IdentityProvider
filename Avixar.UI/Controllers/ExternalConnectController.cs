@@ -18,6 +18,7 @@ namespace Avixar.UI.Controllers
             _connectService = connectService;
         }
 
+        [AllowAnonymous]
         [HttpGet("connect/authorize")]
         public async Task<IActionResult> Authorize([FromQuery] ExternalLoginRequest request)
         {
@@ -48,6 +49,7 @@ namespace Avixar.UI.Controllers
             }
         }
 
+        [AllowAnonymous]
         [HttpPost("connect/token")]
         public async Task<IActionResult> Token([FromForm] string client_id, [FromForm] string client_secret, [FromForm] string code, [FromForm] string redirect_uri, [FromForm] string grant_type)
         {

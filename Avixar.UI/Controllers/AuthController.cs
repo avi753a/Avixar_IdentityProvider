@@ -68,6 +68,33 @@ namespace Avixar.UI.Controllers
             return View(model);
         }
 
+        [HttpGet]
+        public IActionResult SignUp(string? returnUrl = null)
+        {
+            ViewData["ReturnUrl"] = returnUrl;
+            return View();
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SignUp(RegisterDto model, string? returnUrl = null)
+        {
+            if (!ModelState.IsValid) return View(model);
+
+            var result = await _authService.RegisterAsync(model);
+
+            if (result.Status)
+            {
+                await SignInUserAsync(result.Data);
+                return RedirectToLocal(returnUrl);
+            }
+
+            foreach (var error in result.Message.Split(','))
+            {
+                ModelState.AddModelError("", error.Trim());
+            }
+            return View(model);
+        }
+
         [HttpPost]
         public async Task<IActionResult> Logout()
         {
@@ -75,7 +102,7 @@ namespace Avixar.UI.Controllers
             return RedirectToAction("Index", "Home");
         }
 
-        [HttpGet]
+        [HttpPost]
         public IActionResult ExternalLogin(string provider, string? returnUrl = null)
         {
             var redirectUrl = Url.Action("ExternalLoginCallback", "Auth", new { returnUrl });
@@ -163,7 +190,7 @@ namespace Avixar.UI.Controllers
             {
                 return Redirect(returnUrl);
             }
-            return RedirectToAction("Index", "Home");
+            return RedirectToAction("Welcome", "Home");
         }
     }
 }
