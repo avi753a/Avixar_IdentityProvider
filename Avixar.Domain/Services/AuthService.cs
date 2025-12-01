@@ -1,6 +1,8 @@
 using Avixar.Data;
 using Avixar.Entity;
 using Avixar.Entity.Models;
+using Avixar.Entity.Entities;
+using Avixar.Infrastructure.Services;
 using BCrypt.Net;
 using Microsoft.Extensions.Logging;
 
@@ -11,12 +13,24 @@ namespace Avixar.Domain
         private readonly IUserRepository _userRepository;
         private readonly TokenService _tokenService;
         private readonly ILogger<AuthService> _logger;
+        private readonly OtpService _otpService;
+        private readonly EmailService _emailService;
+        private readonly VerificationTokenService _verificationTokenService;
 
-        public AuthService(IUserRepository userRepository, TokenService tokenService, ILogger<AuthService> logger)
+        public AuthService(
+            IUserRepository userRepository, 
+            TokenService tokenService, 
+            ILogger<AuthService> logger,
+            OtpService otpService,
+            EmailService emailService,
+            VerificationTokenService verificationTokenService)
         {
             _userRepository = userRepository;
             _tokenService = tokenService;
             _logger = logger;
+            _otpService = otpService;
+            _emailService = emailService;
+            _verificationTokenService = verificationTokenService;
         }
 
         public async Task<BaseReturn<LoginResult>> RegisterAsync(RegisterDto dto)
@@ -105,7 +119,8 @@ namespace Avixar.Domain
                     UserId = userCreds.UserId,
                     Email = userCreds.Email,
                     DisplayName = userCreds.DisplayName,
-                    Token = token
+                    Token = token,
+                    ProfilePictureUrl = userCreds.ProfilePictureUrl
                 };
 
                 _logger.LogInformation("User logged in successfully: {UserId}", userCreds.UserId);
@@ -144,6 +159,101 @@ namespace Avixar.Domain
             {
                 _logger.LogError(ex, "Social login failed - Provider: {Provider}, Email: {Email}", provider, email);
                 return BaseReturn<LoginResult>.Failure($"Social login failed: {ex.Message}");
+            }
+        }
+
+        public async Task<BaseReturn<LoginResult>> RegisterWithVerificationAsync(RegisterDto dto, string verificationBaseUrl)
+        {
+            try
+            {
+                // 1. Register User
+                var registerResult = await RegisterAsync(dto);
+                if (!registerResult.Status) return registerResult;
+
+                var user = registerResult.Data;
+
+                // 2. Auto-verify email on signup (as per original controller logic)
+                await _userRepository.MarkEmailAsVerifiedAsync(user.UserId);
+                
+                // 3. Send Verification Email (for record/welcome)
+                var token = await _verificationTokenService.GenerateVerificationTokenAsync(user.UserId, user.Email);
+                var verificationLink = $"{verificationBaseUrl}?token={token}";
+                await _emailService.SendVerificationEmailAsync(user.Email, verificationLink);
+
+                return registerResult;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Registration with verification failed for email: {Email}", dto.Email);
+                return BaseReturn<LoginResult>.Failure($"Registration failed: {ex.Message}");
+            }
+        }
+
+        public async Task<BaseReturn<(bool requires2FA, LoginResult? user)>> LoginWithTwoFactorCheckAsync(LoginDto dto)
+        {
+            try
+            {
+                // 1. Basic Login
+                var loginResult = await LoginAsync(dto);
+                if (!loginResult.Status) 
+                    return BaseReturn<(bool, LoginResult?)>.Failure(loginResult.Message);
+
+                var user = loginResult.Data;
+
+                // 2. Check 2FA
+                var userSettings = await _userRepository.GetUserSettingsAsync(user.UserId);
+                if (userSettings != null && userSettings.TwoFactorEnabled)
+                {
+                    // Send OTP
+                    var otp = await _otpService.GenerateOtpAsync(user.UserId, user.Email, OtpPurpose.TwoFactorAuth);
+                    await _emailService.SendOtpEmailAsync(user.Email, otp, "Two-Factor Authentication");
+
+                    // Return indicating 2FA is required, but pass user data (without token if we wanted to be strict, but we need userId)
+                    // We can return the user object but the controller should know not to sign them in yet
+                    return BaseReturn<(bool, LoginResult?)>.Success((true, user), "2FA required");
+                }
+
+                // No 2FA required
+                return BaseReturn<(bool, LoginResult?)>.Success((false, user), "Login successful");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Login with 2FA check failed for email: {Email}", dto.Email);
+                return BaseReturn<(bool, LoginResult?)>.Failure($"Login failed: {ex.Message}");
+            }
+        }
+
+        public async Task<BaseReturn<LoginResult>> VerifyTwoFactorAndLoginAsync(Guid userId, string code)
+        {
+            try
+            {
+                var isValid = await _otpService.ValidateOtpAsync(userId, code, OtpPurpose.TwoFactorAuth);
+                if (!isValid)
+                {
+                    return BaseReturn<LoginResult>.Failure("Invalid Code");
+                }
+
+                var user = await _userRepository.GetUserAsync(userId);
+                if (user == null) return BaseReturn<LoginResult>.Failure("User not found");
+
+                // Generate Token
+                var token = _tokenService.GenerateJwtToken(user.Id.ToString(), user.Email, user.DisplayName);
+
+                var result = new LoginResult 
+                { 
+                    UserId = Guid.Parse(user.Id), 
+                    Email = user.Email ?? "", 
+                    DisplayName = user.DisplayName ?? "",
+                    ProfilePictureUrl = user.ProfilePictureUrl,
+                    Token = token
+                };
+                
+                return BaseReturn<LoginResult>.Success(result, "2FA verified successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "2FA verification failed for user: {UserId}", userId);
+                return BaseReturn<LoginResult>.Failure($"Verification failed: {ex.Message}");
             }
         }
     }

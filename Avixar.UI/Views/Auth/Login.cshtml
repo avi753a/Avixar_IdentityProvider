@@ -125,9 +125,9 @@
                     </div>
 
                     <div class="space-y-2">
-                        <div class="flex justify-between items-center">
+                            <div class="flex justify-between items-center">
                             <label asp-for="Password" class="text-sm font-medium text-gray-300">Password</label>
-                            <a href="#" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">Forgot Password?</a>
+                            <a asp-action="ForgotPassword" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">Forgot Password?</a>
                         </div>
                         <input asp-for="Password" type="password" class="input-field w-full px-4 py-3 rounded-lg text-white placeholder-gray-600" placeholder="••••••••" required />
                         <span asp-validation-for="Password" class="text-red-500 text-xs"></span>

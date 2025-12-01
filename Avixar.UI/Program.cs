@@ -1,5 +1,6 @@
 using Avixar.Domain;
 using Avixar.Data;
+using Avixar.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -60,8 +61,13 @@ try
     // Register Domain Services
     builder.Services.AddScoped<IUserService, UserService>();
     builder.Services.AddScoped<IAuthService, AuthService>();
+    builder.Services.AddScoped<IVerificationService, VerificationService>();
     builder.Services.AddScoped<IConnectService, ConnectService>();
     builder.Services.AddScoped<TokenService>();
+    builder.Services.AddScoped<CloudinaryService>();
+    builder.Services.AddScoped<EmailService>();
+    builder.Services.AddScoped<OtpService>();
+    builder.Services.AddScoped<VerificationTokenService>();
 
     // Health Checks
     builder.Services.AddHealthChecks()

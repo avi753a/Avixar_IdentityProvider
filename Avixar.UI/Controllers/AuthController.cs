@@ -5,6 +5,9 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Avixar.Infrastructure.Services;
+using Avixar.Data;
+using Avixar.Entity.Entities;
 
 namespace Avixar.UI.Controllers
 {
@@ -29,11 +32,22 @@ namespace Avixar.UI.Controllers
         {
             if (!ModelState.IsValid) return View(model);
 
-            var result = await _authService.LoginAsync(model);
+            var result = await _authService.LoginWithTwoFactorCheckAsync(model);
 
             if (result.Status)
             {
-                await SignInUserAsync(result.Data);
+                var (requires2FA, user) = result.Data;
+
+                if (requires2FA)
+                {
+                    // Store UserId in TempData for the OTP verification step
+                    TempData["TwoFactorUserId"] = user.UserId;
+                    TempData["ReturnUrl"] = returnUrl;
+                    
+                    return RedirectToAction("VerifyTwoFactor");
+                }
+
+                await SignInUserAsync(user);
                 return RedirectToLocal(returnUrl);
             }
 
@@ -42,10 +56,39 @@ namespace Avixar.UI.Controllers
         }
 
         [HttpGet]
+        public IActionResult VerifyTwoFactor()
+        {
+            if (TempData["TwoFactorUserId"] == null) return RedirectToAction("Login");
+            TempData.Keep("TwoFactorUserId");
+            return View();
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> VerifyTwoFactor(string code)
+        {
+            if (TempData["TwoFactorUserId"] == null) return RedirectToAction("Login");
+            var userId = (Guid)TempData["TwoFactorUserId"];
+            
+            var result = await _authService.VerifyTwoFactorAndLoginAsync(userId, code);
+            
+            if (result.Status)
+            {
+                await SignInUserAsync(result.Data);
+                
+                var returnUrl = TempData["ReturnUrl"] as string;
+                return RedirectToLocal(returnUrl);
+            }
+            
+            ModelState.AddModelError("", result.Message);
+            TempData.Keep("TwoFactorUserId");
+            return View();
+        }
+
+        [HttpGet]
         public IActionResult Register(string? returnUrl = null)
         {
             ViewData["ReturnUrl"] = returnUrl;
-            return View();
+            return View("SignUp");
         }
 
         [HttpPost]
@@ -53,7 +96,8 @@ namespace Avixar.UI.Controllers
         {
             if (!ModelState.IsValid) return View(model);
 
-            var result = await _authService.RegisterAsync(model);
+            var verificationBaseUrl = Url.Action("VerifyEmail", "Verification", null, Request.Scheme);
+            var result = await _authService.RegisterWithVerificationAsync(model, verificationBaseUrl);
 
             if (result.Status)
             {
@@ -65,7 +109,7 @@ namespace Avixar.UI.Controllers
             {
                 ModelState.AddModelError("", error.Trim());
             }
-            return View(model);
+            return View("SignUp", model);
         }
 
         [HttpGet]
@@ -75,24 +119,17 @@ namespace Avixar.UI.Controllers
             return View();
         }
 
+        [HttpGet]
+        public IActionResult ForgotPassword()
+        {
+            return View();
+        }
+
         [HttpPost]
         public async Task<IActionResult> SignUp(RegisterDto model, string? returnUrl = null)
         {
-            if (!ModelState.IsValid) return View(model);
-
-            var result = await _authService.RegisterAsync(model);
-
-            if (result.Status)
-            {
-                await SignInUserAsync(result.Data);
-                return RedirectToLocal(returnUrl);
-            }
-
-            foreach (var error in result.Message.Split(','))
-            {
-                ModelState.AddModelError("", error.Trim());
-            }
-            return View(model);
+            // Re-use Register logic
+            return await Register(model, returnUrl);
         }
 
         [HttpPost]
@@ -177,6 +214,11 @@ namespace Avixar.UI.Controllers
                 new Claim(ClaimTypes.Name, user.DisplayName),
                 new Claim(ClaimTypes.Email, user.Email)
             };
+
+            if (!string.IsNullOrEmpty(user.ProfilePictureUrl))
+            {
+                claims.Add(new Claim("ProfilePictureUrl", user.ProfilePictureUrl));
+            }
 
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
             var principal = new ClaimsPrincipal(identity);
