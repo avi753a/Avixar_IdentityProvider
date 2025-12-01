@@ -179,7 +179,8 @@ namespace Avixar.Data
                                     UserId = userId,
                                     DisplayName = reader.IsDBNull(1) ? "" : reader.GetString(1),
                                     PasswordHash = reader.IsDBNull(2) ? "" : reader.GetString(2),
-                                    Email = reader.IsDBNull(3) ? "" : reader.GetString(3)
+                                    Email = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                                    ProfilePictureUrl = reader.IsDBNull(4) ? null : reader.GetString(4)
                                 };
                             }
                         }
@@ -322,6 +323,54 @@ namespace Avixar.Data
             }
         }
 
+    public async Task<ApplicationUser?> GetUserByEmailAsync(string email)
+    {
+        try
+        {
+            _logger.LogInformation("Getting user by email");
+            
+            using (var conn = new NpgsqlConnection(_connString))
+            {
+                await conn.OpenAsync();
+                await SetDBEncryptionKeyVariables(conn);
+
+                using (var cmd = new NpgsqlCommand(SqlQueries.GetUserByEmail, conn))
+                {
+                    cmd.Parameters.AddWithValue("email", email);
+                    
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        if (await reader.ReadAsync())
+                        {
+                            var user = new ApplicationUser
+                            {
+                                Id = reader.GetGuid(0).ToString(),
+                                DisplayName = reader.IsDBNull(1) ? "" : reader.GetString(1),
+                                ProfilePictureUrl = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                                FirstName = reader.IsDBNull(3) ? null : reader.GetString(3),
+                                LastName = reader.IsDBNull(4) ? null : reader.GetString(4),
+                                PasswordHash = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                                Email = reader.IsDBNull(6) ? "" : reader.GetString(6),
+                                UserName = reader.IsDBNull(6) ? "" : reader.GetString(6)
+                            };
+                            
+                            _logger.LogInformation("User found by email");
+                            return user;
+                        }
+                    }
+                }
+            }
+            
+            _logger.LogWarning("User not found by email");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting user by email");
+            throw;
+        }
+    }
+
         public async Task<bool> UpdateUserAsync(ApplicationUser user)
         {
             try
@@ -339,6 +388,16 @@ namespace Avixar.Data
                 cmd.Parameters.AddWithValue("ProfilePictureUrl", (object?)user.ProfilePictureUrl ?? DBNull.Value);
 
                 var rows = await cmd.ExecuteNonQueryAsync();
+                
+                // Also update password hash if provided
+                if (!string.IsNullOrEmpty(user.PasswordHash))
+                {
+                    using var pwdCmd = new NpgsqlCommand(SqlQueries.UpdateUserPassword, conn);
+                    pwdCmd.Parameters.AddWithValue("Id", Guid.Parse(user.Id));
+                    pwdCmd.Parameters.AddWithValue("PasswordHash", user.PasswordHash);
+                    await pwdCmd.ExecuteNonQueryAsync();
+                }
+                
                 var success = rows > 0;
                 
                 if (success)
@@ -494,6 +553,92 @@ namespace Avixar.Data
                 throw;
             }
         }
+
+        #region User Settings Methods
+        public async Task<UserSettings?> GetUserSettingsAsync(Guid userId)
+        {
+            try
+            {
+                _logger.LogInformation("Getting user settings for {UserId}", userId);
+
+                using var conn = new NpgsqlConnection(_connString);
+                await conn.OpenAsync();
+
+                using var cmd = new NpgsqlCommand(SqlQueries.GetUserSettings, conn);
+                cmd.Parameters.AddWithValue("UserId", userId);
+
+                using var reader = await cmd.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    return new UserSettings
+                    {
+                        UserId = reader.GetGuid(0),
+                        TwoFactorEnabled = reader.GetBoolean(1),
+                        EmailVerified = reader.GetBoolean(2),
+                        EmailVerifiedAt = reader.IsDBNull(3) ? null : reader.GetDateTime(3),
+                        EmailNotifications = reader.GetBoolean(4),
+                        CreatedAt = reader.GetDateTime(5),
+                        UpdatedAt = reader.GetDateTime(6)
+                    };
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting user settings for {UserId}", userId);
+                throw;
+            }
+        }
+
+        public async Task<bool> UpsertUserSettingsAsync(UserSettings settings)
+        {
+            try
+            {
+                _logger.LogInformation("Upserting user settings for {UserId}", settings.UserId);
+
+                using var conn = new NpgsqlConnection(_connString);
+                await conn.OpenAsync();
+
+                using var cmd = new NpgsqlCommand(SqlQueries.UpsertUserSettings, conn);
+                cmd.Parameters.AddWithValue("UserId", settings.UserId);
+                cmd.Parameters.AddWithValue("TwoFactorEnabled", settings.TwoFactorEnabled);
+                cmd.Parameters.AddWithValue("EmailVerified", settings.EmailVerified);
+                cmd.Parameters.AddWithValue("EmailVerifiedAt", (object?)settings.EmailVerifiedAt ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("EmailNotifications", settings.EmailNotifications);
+
+                var rows = await cmd.ExecuteNonQueryAsync();
+                return rows > 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error upserting user settings for {UserId}", settings.UserId);
+                throw;
+            }
+        }
+
+        public async Task<bool> MarkEmailAsVerifiedAsync(Guid userId)
+        {
+            try
+            {
+                _logger.LogInformation("Marking email as verified for {UserId}", userId);
+
+                using var conn = new NpgsqlConnection(_connString);
+                await conn.OpenAsync();
+
+                using var cmd = new NpgsqlCommand(SqlQueries.UpdateEmailVerified, conn);
+                cmd.Parameters.AddWithValue("UserId", userId);
+
+                var rows = await cmd.ExecuteNonQueryAsync();
+                return rows > 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error marking email as verified for {UserId}", userId);
+                throw;
+            }
+        }
+        #endregion
 
         #region Helper Methods
         private async Task SetDBEncryptionKeyVariables(NpgsqlConnection conn)
